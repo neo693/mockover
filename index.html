@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Document</title>
+    <script src="./perspective.js?t=1"></script>
+  </head>
+  <style>
+    #canvas {
+      border: 1px solid #999;
+      margin: 0 auto;
+      display: block;
+    }
+  </style>
+
+  <body>
+    <!-- HTML部分 -->
+    <canvas id="canvas" width="700" height="1000"></canvas>
+    <script>
+      const canvas = document.getElementById("canvas");
+      const ctx = canvas.getContext("2d");
+
+      // 加载底图A
+      const bgImg = new Image();
+      bgImg.src = "./imgs/a.jpg";
+
+      // 加载贴图B
+      const fgImg = new Image();
+      fgImg.src = "./imgs/b.jpeg";
+      let isDragging = false; // 标记是否正在拖拽
+      let draggingCorner = null; // 标记拖动的角
+      let moveStartPoint = {
+        x: 0,
+        y:0
+      }
+      // 图片四个角
+      let x1 = 0;
+      let y1 = 0;
+      let x2 = fgImg.width;
+      let y2 = y1;
+      let x3 = x2;
+      let y3 = y1 + fgImg.height;
+      let x4 = x1;
+      let y4 = y3;
+
+      // 等待底图A和贴图B加载完成
+      Promise.all([
+        new Promise((resolve) => (bgImg.onload = resolve)),
+        new Promise((resolve) => (fgImg.onload = resolve)),
+      ]).then(() => {
+        ctx.drawImage(bgImg, 0, 0, canvas.width, canvas.height);
+        ctx.drawImage(fgImg, x1, y1, fgImg.width, fgImg.height)
+
+        // 监听鼠标按下事件
+        canvas.addEventListener("mousedown", handleMouseDown);
+
+        // 监听鼠标移动事件
+        canvas.addEventListener("mousemove", handleMouseMove);
+
+        // 监听鼠标抬起事件
+        canvas.addEventListener("mouseup", handleMouseUp);
+      });
+
+      function isPointInImage(x, y) {
+        return x >= x1 && x <= x2 && y >= y1 && y <= y3;
+      }
+
+      function drawPoint() {
+        // 描绘点
+        // x1 = offsetX
+        // y1 = offsetY
+        const r = 4;
+        ctx.fillStyle = "#000";
+        ctx.fillRect(x1 - r, y1 - r, 2 * r, 2 * r);
+        ctx.fillRect(x2 - r, y2 - r, 2 * r, 2 * r);
+        ctx.fillRect(x3 - r, y3 - r, 2 * r, 2 * r);
+        ctx.fillRect(x4 - r, y4 - r, 2 * r, 2 * r);
+      }
+
+      function moveDraw(ox, oy) {
+        // 渲染底图A
+        ctx.drawImage(bgImg, 0, 0, canvas.width, canvas.height);
+
+        // 渲染贴图B
+
+
+        let deltaX = ox - moveStartPoint.x 
+        let deltaY = oy - moveStartPoint.y
+        // console.log(deltaX, deltaY)
+
+        moveStartPoint.x = ox
+        moveStartPoint.y = oy
+
+
+        x1 += deltaX
+        y1 += deltaY
+        x2 += deltaX
+        y2 += deltaY;
+        x3 += deltaX;
+        y3 += deltaY;
+        x4 += deltaX;
+        y4 += deltaY;
+        // ctx.drawImage(fgImg, x1, y1, fgImg.width, fgImg.height);
+        
+
+        var p = new html5jp.perspective(ctx, fgImg);
+        p.draw([
+          // [offsetX, offsetY], // Top-left [x, y]
+          // [fgImg.width - offsetX, offsetY], // Top-right [x, y]
+          // [fgImg.width - offsetX, fgImg.height - offsetY], // bottom-right [x, y]
+          // [offsetX, fgImg.height], // bottom-left [x, y]
+          [x1, y1],
+          [x2, y2],
+          [x3, y3],
+          [x4,y4],
+        ]);
+        
+        drawPoint();
+      }
+
+      function perspectiveDraw(tl, tr, br, bl) {
+        // console.log(tl)
+        // 渲染底图A
+        ctx.drawImage(bgImg, 0, 0, canvas.width, canvas.height);
+
+        // 渲染贴图B
+
+        // ctx.drawImage(fgImg, offsetX, offsetY, fgImg.width, fgImg.height);
+
+        var p = new html5jp.perspective(ctx, fgImg);
+        p.draw([
+          // [offsetX, offsetY], // Top-left [x, y]
+          // [fgImg.width - offsetX, offsetY], // Top-right [x, y]
+          // [fgImg.width - offsetX, fgImg.height - offsetY], // bottom-right [x, y]
+          // [offsetX, fgImg.height], // bottom-left [x, y]
+          tl,
+          tr,
+          br,
+          bl,
+        ]);
+
+        drawPoint();
+      }
+
+      function distance(x1, y1, x2, y2) {
+        return Math.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2);
+      }
+
+      function handleMouseDown(event) {
+        const x = event.offsetX;
+        const y = event.offsetY;
+        // 判断是否点击了图片B的某个角
+        if (distance(x, y, x1, y1) <= 5) {
+          draggingCorner = "topLeft";
+        } else if (distance(x, y, x2, y2) <= 5) {
+          draggingCorner = "topRight";
+        } else if (distance(x, y, x3, y3) <= 5) {
+          draggingCorner = "bottomRight";
+        } else if (distance(x, y, x4, y4) <= 5) {
+          draggingCorner = "bottomLeft";
+        } else if (isPointInImage(x, y)) {
+          isDragging = true; // 开始拖拽
+          moveStartPoint = {
+            x: x,
+            y: y
+          }
+        }
+        // console.log(draggingCorner);
+      }
+
+      function handleMouseMove(event) {
+        // 判断是否正在拖拽
+        if (isDragging) {
+          // x1 = event.offsetX - fgImg.width / 2; // 计算新的横向偏移量
+          // y1 = event.offsetY - fgImg.height / 2; // 计算新的纵向偏移量
+
+          moveDraw(event.offsetX, event.offsetY); // 重新绘制canvas
+        } else {
+          if (draggingCorner == "topLeft") {
+            // offsetX = event.offsetX
+            // offsetY = event.offsetY
+            x1 = event.offsetX;
+            y1 = event.offsetY;
+          } else if (draggingCorner === "topRight") {
+            x2 = event.offsetX;
+            y2 = event.offsetY;
+          } else if (draggingCorner === "bottomRight") {
+            x3= event.offsetX;
+            y3=event.offsetY;
+          } else if (draggingCorner === "bottomLeft"){
+            x4 = event.offsetX;
+            y4=event.offsetY;
+          }
+
+          perspectiveDraw([x1, y1], [x2, y2], [x3, y3], [x4, y4]);
+        }
+      }
+
+      function handleMouseUp(event) {
+        isDragging = false; // 结束拖拽
+        draggingCorner = null;
+      }
+    </script>
+  </body>
+</html>
